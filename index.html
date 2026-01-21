@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Cosmic Hand Morph</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- faint front camera -->
+  <video id="video" autoplay playsinline muted></video>
+
+  <!-- three.js canvas -->
+  <canvas id="three"></canvas>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="title">COSMIC MORPH</div>
+    <div class="status" id="status">Starting camera…</div>
+    <div class="hint">✋ Open → Heart | 🤏 Pinch → Sphere | ☝️ Point → Cube | ✊ Fist → Reset</div>
+  </div>
+
+  <!-- libs -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+
+  <!-- app -->
+  <script src="script.js"></script>
+</body>
+</html>
