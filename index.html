@@ -1,150 +1,127 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>Star Catcher — Single File Game</title>
+  <title>ECHO — Fragments of Light (Phase 1)</title>
   <style>
     :root{
-      --bg1:#070A12;
-      --bg2:#111A33;
-      --card: rgba(255,255,255,.06);
-      --stroke: rgba(255,255,255,.12);
+      --bg:#070A12;
+      --panel: rgba(10,12,22,.72);
+      --stroke: rgba(255,255,255,.14);
       --text: rgba(255,255,255,.92);
       --muted: rgba(255,255,255,.66);
-      --good: #7CFFB2;
-      --bad: #FF6B6B;
-      --accent:#7AA7FF;
+      --accent: rgba(122,167,255,.95);
+      --accent2: rgba(124,255,178,.95);
+      --danger: rgba(255,107,107,.95);
     }
     *{box-sizing:border-box}
-    html,body{height:100%; margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;}
-    body{
-      color:var(--text);
-      background: radial-gradient(1200px 800px at 20% 10%, #1a2458 0%, transparent 55%),
-                  radial-gradient(900px 600px at 85% 40%, #3b1d4d 0%, transparent 50%),
-                  linear-gradient(180deg,var(--bg1),var(--bg2));
-      overflow:hidden;
-      touch-action:none;
-      user-select:none;
-    }
+    html,body{height:100%;margin:0;overflow:hidden;background:var(--bg);color:var(--text);
+      font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial;}
+    canvas{display:block;width:100vw;height:100vh;touch-action:none}
+
+    /* HUD */
     .hud{
-      position:fixed;
-      inset: 14px 14px auto 14px;
-      display:flex;
-      gap:10px;
-      align-items:center;
-      justify-content:space-between;
-      pointer-events:none;
-      z-index:10;
+      position:fixed; inset: 12px 12px auto 12px;
+      display:flex; gap:10px; align-items:center; justify-content:space-between;
+      z-index:20; pointer-events:none;
     }
     .pill{
       pointer-events:none;
-      display:flex;
-      gap:10px;
-      align-items:center;
+      display:flex; gap:10px; align-items:center;
       padding:10px 12px;
-      background:var(--card);
-      border:1px solid var(--stroke);
+      background:rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.12);
       border-radius:14px;
       backdrop-filter: blur(10px);
       box-shadow: 0 12px 40px rgba(0,0,0,.35);
-      font-size:14px;
+      font-size:13px;
+      white-space:nowrap;
     }
     .pill b{font-weight:700}
-    .btns{
+    .hintPill{max-width:min(70vw,520px); overflow:hidden; text-overflow:ellipsis;}
+    .btnRow{
       pointer-events:auto;
-      display:flex;
-      gap:8px;
-      align-items:center;
+      display:flex; gap:8px; align-items:center;
     }
     button{
-      all:unset;
-      cursor:pointer;
+      all:unset; cursor:pointer;
       padding:10px 12px;
       background:rgba(255,255,255,.08);
       border:1px solid rgba(255,255,255,.14);
       border-radius:12px;
       backdrop-filter: blur(10px);
       transition: transform .08s ease, background .2s ease;
-      font-size:14px;
+      font-size:13px;
     }
-    button:active{transform: translateY(1px) scale(.99)}
     button:hover{background:rgba(255,255,255,.12)}
-    canvas{display:block; width:100vw; height:100vh;}
-    .center{
-      position:fixed;
-      inset:0;
-      display:grid;
-      place-items:center;
-      z-index:20;
-      pointer-events:none;
+    button:active{transform: translateY(1px) scale(.99)}
+    .hide{display:none}
+
+    /* Overlay panels (Menu / End / Rotate) */
+    .overlay{
+      position:fixed; inset:0;
+      display:grid; place-items:center;
+      z-index:30;
+      background:
+        radial-gradient(1200px 800px at 20% 10%, rgba(26,36,88,.55) 0%, transparent 55%),
+        radial-gradient(900px 600px at 85% 40%, rgba(59,29,77,.55) 0%, transparent 50%),
+        rgba(0,0,0,.35);
+      backdrop-filter: blur(12px);
     }
     .panel{
       width:min(560px, 92vw);
       padding:18px 18px 16px;
-      background:rgba(10,12,22,.72);
-      border:1px solid rgba(255,255,255,.14);
+      background:var(--panel);
+      border:1px solid var(--stroke);
       border-radius:18px;
-      backdrop-filter: blur(14px);
-      box-shadow: 0 16px 70px rgba(0,0,0,.55);
-      pointer-events:auto;
+      box-shadow: 0 18px 80px rgba(0,0,0,.55);
     }
     .title{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:12px;
-      margin-bottom:10px;
+      display:flex; justify-content:space-between; align-items:flex-end; gap:12px;
+      margin-bottom:8px;
     }
-    .title h1{font-size:18px; margin:0}
+    .title h1{margin:0; font-size:18px; letter-spacing:.5px}
     .title small{color:var(--muted)}
-    .grid{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:10px;
-      margin-top:10px;
-    }
+    .sub{margin:0 0 12px; color:var(--muted); font-size:13px; line-height:1.4}
+    .grid{display:grid; grid-template-columns:1fr 1fr; gap:10px}
     .card{
       padding:12px;
       background:rgba(255,255,255,.05);
       border:1px solid rgba(255,255,255,.10);
       border-radius:14px;
     }
-    .card h3{margin:0 0 6px; font-size:14px}
-    .card p{margin:0; color:var(--muted); font-size:13px; line-height:1.35}
+    .card h3{margin:0 0 6px; font-size:13px}
+    .card p{margin:0; color:var(--muted); font-size:12.5px; line-height:1.35}
     .footer{
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      gap:10px;
-      margin-top:12px;
-      flex-wrap:wrap;
+      display:flex; justify-content:space-between; align-items:center;
+      gap:10px; margin-top:12px; flex-wrap:wrap;
     }
-    .hint{color:var(--muted); font-size:13px}
-    .hide{display:none}
-    /* Mobile joystick */
+    .cta{
+      padding:12px 14px;
+      border-radius:14px;
+      border:1px solid rgba(122,167,255,.35);
+      background:rgba(122,167,255,.14);
+    }
+    .cta:hover{background:rgba(122,167,255,.20)}
+    .fine{color:var(--muted); font-size:12px}
+
+    /* Touch controls */
     .joyWrap{
-      position:fixed;
-      left:16px;
-      bottom:16px;
-      width:140px;
-      height:140px;
-      border-radius:24px;
+      position:fixed; left:14px; bottom:14px;
+      width:150px; height:150px;
+      border-radius:26px;
       background:rgba(255,255,255,.06);
       border:1px solid rgba(255,255,255,.12);
       backdrop-filter: blur(10px);
       box-shadow: 0 16px 60px rgba(0,0,0,.35);
       display:none;
-      z-index:15;
+      z-index:25;
       touch-action:none;
     }
-    .joyBase{
-      position:absolute; inset:0;
-      border-radius:24px;
-      display:grid; place-items:center;
-    }
+    .joyBase{position:absolute; inset:0; display:grid; place-items:center}
     .joyDot{
-      width:54px; height:54px;
+      width:56px; height:56px;
       border-radius:18px;
       background:rgba(122,167,255,.18);
       border:1px solid rgba(122,167,255,.45);
@@ -152,532 +129,122 @@
       transform: translate(0,0);
       transition: transform .06s linear;
     }
+    /* Right-side camera swipe zone */
+    .camZone{
+      position:fixed; right:0; top:0;
+      width:55vw; height:100vh;
+      z-index:24;
+      touch-action:none;
+    }
+    .tapInteract{
+      position:fixed; right:14px; bottom:14px;
+      z-index:26;
+      display:none;
+    }
+    .tapInteract button{
+      padding:14px 14px;
+      border-radius:16px;
+      border:1px solid rgba(124,255,178,.35);
+      background:rgba(124,255,178,.14);
+    }
+    .tapInteract button:hover{background:rgba(124,255,178,.20)}
+
     @media (pointer:coarse){
       .joyWrap{display:block;}
+      .camZone{display:block;}
+      .tapInteract{display:block;}
+    }
+
+    /* Rotate overlay (portrait) */
+    .rotateIcon{
+      width:54px;height:54px;border-radius:18px;
+      border:1px solid rgba(255,255,255,.16);
+      background:rgba(255,255,255,.06);
+      display:grid; place-items:center;
+      margin-bottom:10px;
     }
   </style>
 </head>
 <body>
   <div class="hud">
-    <div class="pill" id="stats">
-      <span>⭐ Score: <b id="score">0</b></span>
-      <span>❤️ Life: <b id="life">3</b></span>
-      <span>⚡ Streak: <b id="streak">0</b></span>
-    </div>
-    <div class="btns">
-      <button id="btnPause">Pause</button>
+    <div class="pill hintPill" id="hint">Loading…</div>
+    <div class="btnRow">
       <button id="btnRestart">Restart</button>
     </div>
   </div>
 
-  <div class="center" id="overlay">
+  <!-- Play Menu -->
+  <div class="overlay" id="menu">
     <div class="panel">
       <div class="title">
-        <h1>Star Catcher</h1>
-        <small>single-file HTML game</small>
+        <h1>ECHO</h1>
+        <small>Fragments of Light</small>
       </div>
+      <p class="sub">
+        A cinematic third-person journey. Explore the quiet world, then open the final box.
+      </p>
       <div class="grid">
-        <div class="card">
-          <h3>How to play</h3>
-          <p>
-            Move the ship to catch ⭐ stars.
-            Avoid 💥 bombs. If you miss too many or hit bombs, you lose ❤️.
-          </p>
-        </div>
         <div class="card">
           <h3>Controls</h3>
           <p>
-            PC: Arrow keys / WASD<br/>
-            Mobile: Drag the joystick (bottom-left)
+            Move: left joystick<br>
+            Camera: swipe right side<br>
+            Interact: tap button (or tap object)
+          </p>
+        </div>
+        <div class="card">
+          <h3>Performance</h3>
+          <p>
+            Optimized for mobile.<br>
+            Target: stable 60 FPS.<br>
+            Landscape only.
           </p>
         </div>
       </div>
       <div class="footer">
-        <div class="hint">Tip: Keep a streak to spawn more stars!</div>
-        <button id="btnStart">Start</button>
+        <div class="fine">Tip: Walk to the glowing box and interact.</div>
+        <button class="cta" id="btnPlay">PLAY</button>
       </div>
     </div>
   </div>
 
-  <div class="joyWrap" id="joy">
-    <div class="joyBase">
-      <div class="joyDot" id="joyDot"></div>
+  <!-- End Screen -->
+  <div class="overlay hide" id="end">
+    <div class="panel">
+      <div class="title">
+        <h1>End</h1>
+        <small>Thank you for listening.</small>
+      </div>
+      <p class="sub" id="endText">
+        —
+      </p>
+      <div class="footer">
+        <div class="fine">Replay anytime.</div>
+        <button class="cta" id="btnReplay">REPLAY</button>
+      </div>
     </div>
   </div>
 
+  <!-- Rotate Screen -->
+  <div class="overlay hide" id="rotate">
+    <div class="panel" style="text-align:center">
+      <div class="rotateIcon">📱↻</div>
+      <div class="title" style="justify-content:center">
+        <h1 style="text-align:center">Please rotate your device</h1>
+      </div>
+      <p class="sub">Landscape mode is required for the best cinematic experience.</p>
+    </div>
+  </div>
+
+  <!-- Touch UI -->
+  <div class="joyWrap" id="joy">
+    <div class="joyBase"><div class="joyDot" id="joyDot"></div></div>
+  </div>
+  <div class="camZone" id="camZone"></div>
+  <div class="tapInteract" id="tapUI"><button id="btnInteract">INTERACT</button></div>
+
   <canvas id="c"></canvas>
 
-<script>
-(() => {
-  // ---------- Canvas setup ----------
-  const canvas = document.getElementById('c');
-  const ctx = canvas.getContext('2d');
-
-  function resize(){
-    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-    canvas.width = Math.floor(innerWidth * dpr);
-    canvas.height = Math.floor(innerHeight * dpr);
-    canvas.style.width = innerWidth + 'px';
-    canvas.style.height = innerHeight + 'px';
-    ctx.setTransform(dpr,0,0,dpr,0,0);
-  }
-  addEventListener('resize', resize, {passive:true});
-  resize();
-
-  // ---------- UI ----------
-  const elScore = document.getElementById('score');
-  const elLife = document.getElementById('life');
-  const elStreak = document.getElementById('streak');
-  const overlay = document.getElementById('overlay');
-  const btnStart = document.getElementById('btnStart');
-  const btnPause = document.getElementById('btnPause');
-  const btnRestart = document.getElementById('btnRestart');
-
-  // ---------- Game state ----------
-  const rnd = (a,b)=>a+Math.random()*(b-a);
-  const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
-
-  const state = {
-    running:false,
-    paused:false,
-    t:0,
-    score:0,
-    life:3,
-    streak:0,
-    missed:0,
-    best:0,
-    shake:0
-  };
-
-  const ship = {
-    x: innerWidth*0.5,
-    y: innerHeight*0.78,
-    vx:0, vy:0,
-    r: 18,
-    speed: 900 // px per second (accel-ish)
-  };
-
-  let items = [];
-  const particles = [];
-
-  function reset(){
-    state.t=0;
-    state.score=0;
-    state.life=3;
-    state.streak=0;
-    state.missed=0;
-    state.shake=0;
-    ship.x = innerWidth*0.5;
-    ship.y = innerHeight*0.78;
-    ship.vx = ship.vy = 0;
-    items = [];
-    for(let i=0;i<10;i++) spawn('star', true);
-    for(let i=0;i<2;i++) spawn('bomb', true);
-    syncHUD();
-  }
-
-  function syncHUD(){
-    elScore.textContent = state.score;
-    elLife.textContent = state.life;
-    elStreak.textContent = state.streak;
-  }
-
-  // ---------- Input (keyboard) ----------
-  const keys = new Set();
-  addEventListener('keydown', (e)=>{
-    const k = e.key.toLowerCase();
-    if(['arrowup','arrowdown','arrowleft','arrowright','w','a','s','d',' '].includes(k)){
-      e.preventDefault();
-    }
-    if(k === ' ') togglePause();
-    keys.add(k);
-  });
-  addEventListener('keyup', (e)=> keys.delete(e.key.toLowerCase()));
-
-  // ---------- Input (mobile joystick) ----------
-  const joy = document.getElementById('joy');
-  const joyDot = document.getElementById('joyDot');
-  const joyVec = {x:0, y:0, active:false};
-
-  function setJoy(dx,dy){
-    const max = 42;
-    const len = Math.hypot(dx,dy) || 1;
-    const nx = dx/len, ny = dy/len;
-    const mag = clamp(len, 0, max);
-    const x = nx*mag, y = ny*mag;
-    joyDot.style.transform = `translate(${x}px, ${y}px)`;
-    joyVec.x = (x/max);
-    joyVec.y = (y/max);
-  }
-
-  function joyPos(e){
-    const r = joy.getBoundingClientRect();
-    const x = (e.touches? e.touches[0].clientX : e.clientX) - (r.left + r.width/2);
-    const y = (e.touches? e.touches[0].clientY : e.clientY) - (r.top + r.height/2);
-    return {x,y};
-  }
-
-  joy.addEventListener('pointerdown', (e)=>{
-    joy.setPointerCapture(e.pointerId);
-    joyVec.active = true;
-    const p = joyPos(e);
-    setJoy(p.x,p.y);
-  });
-  joy.addEventListener('pointermove', (e)=>{
-    if(!joyVec.active) return;
-    const p = joyPos(e);
-    setJoy(p.x,p.y);
-  });
-  joy.addEventListener('pointerup', ()=>{
-    joyVec.active = false;
-    setJoy(0,0);
-  });
-  joy.addEventListener('pointercancel', ()=>{
-    joyVec.active = false;
-    setJoy(0,0);
-  });
-
-  // ---------- Entities ----------
-  function spawn(type, warm=false){
-    const pad = 30;
-    const x = rnd(pad, innerWidth-pad);
-    const y = warm ? rnd(-innerHeight, innerHeight) : rnd(-120, -30);
-    const speed = (type==='star') ? rnd(120, 240) : rnd(170, 320);
-    const r = (type==='star') ? rnd(10, 14) : rnd(12, 16);
-    items.push({
-      type,
-      x, y,
-      vx: rnd(-30,30),
-      vy: speed,
-      r,
-      spin: rnd(-3,3),
-      a: 1
-    });
-  }
-
-  function burst(x,y, good=true){
-    for(let i=0;i<18;i++){
-      particles.push({
-        x,y,
-        vx: rnd(-260,260),
-        vy: rnd(-320,120),
-        r: rnd(2,4),
-        life: rnd(0.35, 0.8),
-        t:0,
-        good
-      });
-    }
-  }
-
-  function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
-
-  // ---------- Pause / Start / Restart ----------
-  function start(){
-    overlay.classList.add('hide');
-    state.running = true;
-    state.paused = false;
-    last = performance.now();
-    requestAnimationFrame(loop);
-  }
-  function togglePause(){
-    if(!state.running) return;
-    state.paused = !state.paused;
-    btnPause.textContent = state.paused ? 'Resume' : 'Pause';
-    if(!state.paused){
-      last = performance.now();
-      requestAnimationFrame(loop);
-    }
-  }
-  function gameOver(){
-    state.running = false;
-    state.paused = false;
-    btnPause.textContent = 'Pause';
-    overlay.classList.remove('hide');
-    overlay.querySelector('h1').textContent = 'Game Over';
-    overlay.querySelector('.hint').textContent = `Final score: ${state.score}  •  Refresh streak: ${state.streak}`;
-    btnStart.textContent = 'Play again';
-  }
-
-  btnStart.addEventListener('click', ()=>{
-    reset();
-    start();
-  });
-  btnPause.addEventListener('click', togglePause);
-  btnRestart.addEventListener('click', ()=>{
-    reset();
-    if(!state.running){
-      overlay.classList.add('hide');
-      state.running = true;
-      requestAnimationFrame(loop);
-    }
-  });
-
-  // ---------- Render helpers ----------
-  function drawStar(x,y,r){
-    ctx.save();
-    ctx.translate(x,y);
-    ctx.beginPath();
-    const spikes = 5;
-    const outer = r;
-    const inner = r*0.48;
-    for(let i=0;i<spikes*2;i++){
-      const ang = i*Math.PI/spikes;
-      const rad = (i%2===0) ? outer : inner;
-      ctx.lineTo(Math.cos(ang)*rad, Math.sin(ang)*rad);
-    }
-    ctx.closePath();
-    ctx.fillStyle = 'rgba(124,255,178,.95)';
-    ctx.shadowColor = 'rgba(124,255,178,.55)';
-    ctx.shadowBlur = 18;
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = 'rgba(255,255,255,.28)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  function drawBomb(x,y,r){
-    ctx.save();
-    ctx.translate(x,y);
-    ctx.beginPath();
-    ctx.arc(0,0,r,0,Math.PI*2);
-    ctx.fillStyle = 'rgba(255,107,107,.92)';
-    ctx.shadowColor = 'rgba(255,107,107,.55)';
-    ctx.shadowBlur = 18;
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = 'rgba(255,255,255,.22)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    // fuse
-    ctx.beginPath();
-    ctx.moveTo(r*0.2, -r*0.9);
-    ctx.quadraticCurveTo(r*0.9, -r*1.3, r*0.9, -r*2.0);
-    ctx.strokeStyle = 'rgba(255,255,255,.35)';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.arc(r*0.9, -r*2.05, r*0.25, 0, Math.PI*2);
-    ctx.fillStyle = 'rgba(255,230,150,.95)';
-    ctx.shadowColor = 'rgba(255,230,150,.65)';
-    ctx.shadowBlur = 14;
-    ctx.fill();
-
-    ctx.restore();
-  }
-
-  function drawShip(){
-    const x = ship.x, y = ship.y, r = ship.r;
-    ctx.save();
-    ctx.translate(x,y);
-
-    // glow
-    ctx.beginPath();
-    ctx.arc(0,0,r*1.9,0,Math.PI*2);
-    ctx.fillStyle = 'rgba(122,167,255,.10)';
-    ctx.fill();
-
-    // body
-    ctx.beginPath();
-    ctx.moveTo(0,-r*1.3);
-    ctx.quadraticCurveTo(r*1.1, -r*0.2, r*0.75, r*1.1);
-    ctx.quadraticCurveTo(0, r*0.55, -r*0.75, r*1.1);
-    ctx.quadraticCurveTo(-r*1.1, -r*0.2, 0, -r*1.3);
-    ctx.closePath();
-    ctx.fillStyle = 'rgba(255,255,255,.12)';
-    ctx.strokeStyle = 'rgba(255,255,255,.30)';
-    ctx.lineWidth = 1.2;
-    ctx.fill();
-    ctx.stroke();
-
-    // core
-    ctx.beginPath();
-    ctx.arc(0,0,r*0.42,0,Math.PI*2);
-    ctx.fillStyle = 'rgba(122,167,255,.55)';
-    ctx.shadowColor = 'rgba(122,167,255,.65)';
-    ctx.shadowBlur = 18;
-    ctx.fill();
-
-    ctx.restore();
-  }
-
-  function background(){
-    // stars
-    ctx.save();
-    ctx.globalAlpha = 0.9;
-    for(let i=0;i<80;i++){
-      const px = (i*97 % innerWidth);
-      const py = (i*193 % innerHeight);
-      const tw = (Math.sin(state.t*0.002 + i) + 1) * 0.45 + 0.1;
-      ctx.fillStyle = `rgba(255,255,255,${0.08 + tw*0.12})`;
-      ctx.fillRect(px, py, 2, 2);
-    }
-    ctx.restore();
-  }
-
-  // ---------- Main loop ----------
-  let last = performance.now();
-
-  function loop(now){
-    if(!state.running || state.paused) return;
-    const dt = Math.min(0.033, (now-last)/1000);
-    last = now;
-    state.t += dt*1000;
-
-    update(dt);
-    render();
-
-    requestAnimationFrame(loop);
-  }
-
-  function update(dt){
-    // input vector from keyboard + joystick
-    let ix = 0, iy = 0;
-
-    if(keys.has('arrowleft') || keys.has('a')) ix -= 1;
-    if(keys.has('arrowright') || keys.has('d')) ix += 1;
-    if(keys.has('arrowup') || keys.has('w')) iy -= 1;
-    if(keys.has('arrowdown') || keys.has('s')) iy += 1;
-
-    ix += joyVec.x;
-    iy += joyVec.y;
-
-    const len = Math.hypot(ix,iy) || 1;
-    ix = (len>1) ? ix/len : ix;
-    iy = (len>1) ? iy/len : iy;
-
-    // move ship (simple accel + damping)
-    ship.vx += ix * ship.speed * dt;
-    ship.vy += iy * ship.speed * dt;
-    ship.vx *= Math.pow(0.0009, dt); // damping
-    ship.vy *= Math.pow(0.0009, dt);
-
-    ship.x += ship.vx * dt;
-    ship.y += ship.vy * dt;
-
-    ship.x = clamp(ship.x, ship.r+10, innerWidth-ship.r-10);
-    ship.y = clamp(ship.y, ship.r+10, innerHeight-ship.r-10);
-
-    // spawn rate (more streak => more stars)
-    const wantStars = 10 + Math.floor(state.streak/5);
-    const wantBombs = 2 + Math.floor(state.score/30);
-
-    while(items.filter(i=>i.type==='star').length < wantStars) spawn('star');
-    while(items.filter(i=>i.type==='bomb').length < Math.min(8, wantBombs)) spawn('bomb');
-
-    // update items
-    for(const it of items){
-      it.x += it.vx * dt;
-      it.y += it.vy * dt;
-
-      // slight drift
-      it.vx += Math.sin(state.t*0.001 + it.x*0.01) * dt * 8;
-
-      // wrap x
-      if(it.x < -40) it.x = innerWidth+40;
-      if(it.x > innerWidth+40) it.x = -40;
-
-      // collision
-      if(dist(it, ship) < it.r + ship.r*0.78){
-        if(it.type === 'star'){
-          state.score += 1;
-          state.streak += 1;
-          state.shake = Math.min(16, state.shake + 2);
-          burst(it.x, it.y, true);
-        } else {
-          state.life -= 1;
-          state.streak = 0;
-          state.shake = Math.min(28, state.shake + 10);
-          burst(it.x, it.y, false);
-        }
-        it.y = innerHeight + 200; // mark to respawn
-      }
-    }
-
-    // missed items
-    for(const it of items){
-      if(it.y > innerHeight + 70){
-        if(it.type === 'star'){
-          state.missed += 1;
-          state.streak = 0;
-          if(state.missed % 6 === 0){
-            state.life -= 1;
-            state.shake = Math.min(26, state.shake + 8);
-          }
-        }
-        // respawn
-        it.x = rnd(30, innerWidth-30);
-        it.y = rnd(-140, -40);
-        it.vy = (it.type==='star') ? rnd(120, 240) : rnd(170, 320);
-      }
-    }
-
-    // particles
-    for(let i=particles.length-1;i>=0;i--){
-      const p = particles[i];
-      p.t += dt;
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      p.vy += 520 * dt;
-      if(p.t > p.life) particles.splice(i,1);
-    }
-
-    // shake decay
-    state.shake *= Math.pow(0.01, dt);
-    if(state.life <= 0) gameOver();
-
-    syncHUD();
-  }
-
-  function render(){
-    // camera shake
-    const sx = (Math.random()*2-1) * state.shake;
-    const sy = (Math.random()*2-1) * state.shake;
-
-    ctx.clearRect(0,0,innerWidth,innerHeight);
-    ctx.save();
-    ctx.translate(sx, sy);
-
-    background();
-
-    // soft vignette
-    ctx.save();
-    const g = ctx.createRadialGradient(innerWidth*0.5, innerHeight*0.45, innerWidth*0.15,
-                                      innerWidth*0.5, innerHeight*0.5, innerWidth*0.75);
-    g.addColorStop(0,'rgba(0,0,0,0)');
-    g.addColorStop(1,'rgba(0,0,0,.45)');
-    ctx.fillStyle = g;
-    ctx.fillRect(-40,-40, innerWidth+80, innerHeight+80);
-    ctx.restore();
-
-    // draw items
-    for(const it of items){
-      if(it.type==='star') drawStar(it.x,it.y,it.r);
-      else drawBomb(it.x,it.y,it.r);
-    }
-
-    // particles
-    for(const p of particles){
-      const a = 1 - (p.t/p.life);
-      ctx.globalAlpha = a;
-      ctx.beginPath();
-      ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
-      ctx.fillStyle = p.good ? 'rgba(124,255,178,.85)' : 'rgba(255,107,107,.85)';
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-
-    drawShip();
-
-    ctx.restore();
-  }
-
-  // Init
-  reset();
-})();
-</script>
+  <script type="module" src="./main.js"></script>
 </body>
 </html>
