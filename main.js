@@ -1,466 +1,302 @@
-/* ==================================================
-   ECHO — Fragments of Light (Phase 1)
-   FINAL: iOS/Android touch-safe + rotate-safe + import-safe
-   ================================================== */
+/**********************
+ * COSMIC MORPH (Premium)
+ * - additive glow particles
+ * - depth fade + subtle drift
+ * - swirl-in morph (organic)
+ * - easing + overshoot settle
+ **********************/
 
-// ---- Three import (LOCAL first, then CDN) ----
-// Put three.module.js next to main.js if you want OFFLINE.
-// If you don't have it, it will try CDN.
-let THREE;
-try {
-  THREE = await import("./three.module.js");
-} catch {
-  THREE = await import("https://unpkg.com/three@0.160.0/build/three.module.js");
-}
+const video = document.getElementById("video");
+const statusEl = document.getElementById("status");
+const setStatus = (t) => (statusEl.textContent = t);
 
-// ---------------- DOM ----------------
-const canvas = document.getElementById("c");
-const hintEl = document.getElementById("hint");
-
-const menuEl = document.getElementById("menu");
-const endEl = document.getElementById("end");
-const rotateEl = document.getElementById("rotate");
-
-const btnPlay = document.getElementById("btnPlay");
-const btnReplay = document.getElementById("btnReplay");
-const btnRestart = document.getElementById("btnRestart");
-
-const joy = document.getElementById("joy");
-const joyDot = document.getElementById("joyDot");
-const camZone = document.getElementById("camZone");
-const btnInteract = document.getElementById("btnInteract");
-const endTextEl = document.getElementById("endText");
-
-// ---------------- Utils ----------------
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const damp = (c, t, l, dt) => c + (t - c) * (1 - Math.exp(-l * dt));
-const v3 = (x=0,y=0,z=0) => new THREE.Vector3(x,y,z);
-
-// ---------------- State ----------------
-const GameState = { MENU: 0, PLAYING: 1, END: 2 };
-let state = GameState.MENU;
-
-let opened = false;
-let canInteract = false;
-
-// ---------------- Orientation (WARNING-ONLY; NEVER BLOCKS) ----------------
-function orientationCheckSoft() {
-  // tolerant check so iOS won’t get stuck
-  const landscape = window.innerWidth >= window.innerHeight * 0.9;
-  rotateEl.classList.toggle("hide", landscape);
-}
-window.addEventListener("resize", orientationCheckSoft, { passive: true });
-window.addEventListener("orientationchange", orientationCheckSoft);
-
-// ---------------- Renderer ----------------
-const renderer = new THREE.WebGLRenderer({
-  canvas,
-  antialias: false,
-  alpha: false,
-  powerPreference: "high-performance",
-});
-renderer.setClearColor(0x070a12, 1);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
-
-// ---------------- Scene / Camera ----------------
+/* =====================
+   THREE.JS SCENE
+===================== */
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x070a12, 8, 38);
+scene.fog = new THREE.FogExp2(0x000006, 0.06);
 
-const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 120);
-const camPos = new THREE.Vector3();
-const camTarget = new THREE.Vector3();
+const camera3D = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 200);
+camera3D.position.set(0, 0, 7);
 
-function resize() {
-  const w = window.innerWidth;
-  const h = window.innerHeight;
-  renderer.setSize(w, h, false);
-  camera.aspect = w / h;
-  camera.updateProjectionMatrix();
-}
-window.addEventListener("resize", resize, { passive: true });
-resize();
+const renderer = new THREE.WebGLRenderer({
+  canvas: document.getElementById("three"),
+  alpha: true,
+  antialias: true,
+});
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+renderer.setClearColor(0x000000, 0); // transparent over video
 
-// ---------------- Lighting (cheap cinematic) ----------------
-scene.add(new THREE.HemisphereLight(0x7aa7ff, 0x0b1022, 0.9));
-const sun = new THREE.DirectionalLight(0xffffff, 0.9);
-sun.position.set(6, 10, 4);
-scene.add(sun);
-
-// ---------------- Ground ----------------
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(120, 120),
-  new THREE.MeshStandardMaterial({ color: 0x0b1022, roughness: 1.0, metalness: 0.0 })
-);
-ground.rotation.x = -Math.PI / 2;
-scene.add(ground);
-
-// subtle “path”
-const path = new THREE.Mesh(
-  new THREE.PlaneGeometry(40, 4),
-  new THREE.MeshStandardMaterial({
-    color: 0x0f1836,
-    roughness: 1.0,
-    emissive: 0x05060a,
-    emissiveIntensity: 0.45,
-  })
-);
-path.rotation.x = -Math.PI / 2;
-path.position.set(10, 0.01, 0);
-scene.add(path);
-
-// ---------------- Particles (cheap points) ----------------
-const starCount = 260;
-const starGeo = new THREE.BufferGeometry();
-const starPos = new Float32Array(starCount * 3);
-for (let i = 0; i < starCount; i++) {
-  starPos[i * 3 + 0] = (Math.random() * 2 - 1) * 40;
-  starPos[i * 3 + 1] = Math.random() * 10 + 1;
-  starPos[i * 3 + 2] = (Math.random() * 2 - 1) * 40;
-}
-starGeo.setAttribute("position", new THREE.BufferAttribute(starPos, 3));
-const stars = new THREE.Points(
-  starGeo,
-  new THREE.PointsMaterial({ color: 0xffffff, size: 0.02, transparent: true, opacity: 0.55 })
-);
-scene.add(stars);
-
-// ---------------- Player ----------------
-const player = new THREE.Group();
-scene.add(player);
-
-const body = new THREE.Mesh(
-  new THREE.CapsuleGeometry(0.28, 0.72, 6, 10),
-  new THREE.MeshStandardMaterial({
-    color: 0x1c2448,
-    emissive: 0x050913,
-    emissiveIntensity: 0.35,
-    roughness: 0.6,
-    metalness: 0.08,
-  })
-);
-body.position.y = 0.72;
-player.add(body);
-
-const core = new THREE.Mesh(
-  new THREE.SphereGeometry(0.12, 18, 18),
-  new THREE.MeshStandardMaterial({
-    color: 0x7aa7ff,
-    emissive: 0x7aa7ff,
-    emissiveIntensity: 1.1,
-    roughness: 0.2,
-    metalness: 0.1,
-  })
-);
-core.position.set(0, 0.92, 0.22);
-player.add(core);
-
-player.position.set(-6, 0, 0);
-
-// ---------------- Box + Paper ----------------
-const boxGroup = new THREE.Group();
-scene.add(boxGroup);
-boxGroup.position.set(16, 0, 0);
-
-const boxMat = new THREE.MeshStandardMaterial({
-  color: 0x121831,
-  roughness: 0.35,
-  metalness: 0.12,
-  emissive: 0x0a0f22,
-  emissiveIntensity: 0.42,
+window.addEventListener("resize", () => {
+  camera3D.aspect = innerWidth / innerHeight;
+  camera3D.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
 });
 
-const base = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.55, 0.9), boxMat);
-base.position.y = 0.275;
-boxGroup.add(base);
+/* Subtle lighting (mostly particle glow) */
+scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+const key = new THREE.DirectionalLight(0xffffff, 0.45);
+key.position.set(3, 4, 5);
+scene.add(key);
 
-const lidPivot = new THREE.Group();
-lidPivot.position.set(0, 0.61, 0);
-boxGroup.add(lidPivot);
+/* =====================
+   PARTICLES
+===================== */
+const COUNT = 2200;
 
-const lid = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.12, 0.92), boxMat);
-lid.position.set(0, 0, -0.46);
-lidPivot.add(lid);
+// base positions (current)
+const pos = new Float32Array(COUNT * 3);
+// targets (where to morph to)
+const tgt = new Float32Array(COUNT * 3);
+// per-particle phase
+const phase = new Float32Array(COUNT);
+// per-particle depth factor
+const depth = new Float32Array(COUNT);
 
-// glow ring
-const ring = new THREE.Mesh(
-  new THREE.RingGeometry(0.65, 0.78, 42),
-  new THREE.MeshBasicMaterial({ color: 0x7cffb2, transparent: true, opacity: 0.35, side: THREE.DoubleSide })
-);
-ring.rotation.x = -Math.PI / 2;
-ring.position.set(0, 0.02, 0);
-boxGroup.add(ring);
+// initial space distribution
+function randomSpace(i, spread = 34) {
+  pos[i * 3] = (Math.random() - 0.5) * spread;
+  pos[i * 3 + 1] = (Math.random() - 0.5) * spread;
+  pos[i * 3 + 2] = (Math.random() - 0.5) * spread;
+}
 
-// Paper texture (premium-ish)
-const paperCanvas = document.createElement("canvas");
-paperCanvas.width = 512;
-paperCanvas.height = 340;
-const pctx = paperCanvas.getContext("2d");
+for (let i = 0; i < COUNT; i++) {
+  randomSpace(i);
+  tgt[i * 3] = pos[i * 3];
+  tgt[i * 3 + 1] = pos[i * 3 + 1];
+  tgt[i * 3 + 2] = pos[i * 3 + 2];
+  phase[i] = Math.random() * Math.PI * 2;
+  depth[i] = 0.4 + Math.random() * 0.6;
+}
 
-function drawPaper(text) {
-  pctx.clearRect(0, 0, 512, 340);
-  pctx.fillStyle = "#f3f0e8";
-  pctx.fillRect(0, 0, 512, 340);
+const geo = new THREE.BufferGeometry();
+geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
 
-  pctx.globalAlpha = 0.12;
-  for (let i = 0; i < 2000; i++) {
-    const x = Math.random() * 512;
-    const y = Math.random() * 340;
-    const v = Math.random() * 18;
-    pctx.fillStyle = `rgb(${220+v},${216+v},${206+v})`;
-    pctx.fillRect(x, y, 1, 1);
+/* Additive glow material = premium look */
+const mat = new THREE.PointsMaterial({
+  color: 0x9fd3ff,
+  size: 0.055,
+  transparent: true,
+  opacity: 0.9,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+});
+
+const particles = new THREE.Points(geo, mat);
+scene.add(particles);
+
+/* A second faint layer for depth richness */
+const geo2 = geo.clone();
+const mat2 = new THREE.PointsMaterial({
+  color: 0xff7ad9,
+  size: 0.03,
+  transparent: true,
+  opacity: 0.28,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+});
+const particles2 = new THREE.Points(geo2, mat2);
+scene.add(particles2);
+
+/* =====================
+   MORPH ENGINE
+===================== */
+let morph = {
+  active: false,
+  t: 0, // 0..1
+  speed: 0.02,
+  swirl: 0.9,     // swirl strength
+  overshoot: 0.12 // settle overshoot
+};
+
+// smoothstep easing
+function easeInOut(t) {
+  return t * t * (3 - 2 * t);
+}
+
+// set target helper
+function setTargetXYZ(i, x, y, z) {
+  tgt[i * 3] = x;
+  tgt[i * 3 + 1] = y;
+  tgt[i * 3 + 2] = z;
+}
+
+function beginMorph(label) {
+  morph.active = true;
+  morph.t = 0;
+  setStatus(label);
+}
+
+/* =====================
+   SHAPE TARGETS (premium)
+===================== */
+
+// Sphere (volume, not surface) -> richer look
+function targetsSphere(r = 1.7) {
+  for (let i = 0; i < COUNT; i++) {
+    // random point inside sphere (use cubic root)
+    const u = Math.random();
+    const v = Math.random();
+    const w = Math.random();
+
+    const theta = 2 * Math.PI * u;
+    const phi = Math.acos(2 * v - 1);
+    const rad = r * Math.cbrt(w);
+
+    const x = rad * Math.sin(phi) * Math.cos(theta);
+    const y = rad * Math.sin(phi) * Math.sin(theta);
+    const z = rad * Math.cos(phi);
+
+    setTargetXYZ(i, x, y, z);
   }
-  pctx.globalAlpha = 1;
-
-  pctx.fillStyle = "#1a1a1a";
-  pctx.font = "62px 'Bradley Hand','Segoe Script','Comic Sans MS',cursive";
-  pctx.textAlign = "center";
-  pctx.textBaseline = "middle";
-  pctx.fillText(text, 256, 170);
-
-  pctx.strokeStyle = "rgba(26,26,26,.55)";
-  pctx.lineWidth = 2;
-  pctx.beginPath();
-  pctx.moveTo(512 * 0.22, 340 * 0.63);
-  pctx.quadraticCurveTo(512 * 0.5, 340 * 0.69, 512 * 0.78, 340 * 0.63);
-  pctx.stroke();
-}
-drawPaper("Lee Bal Kwar");
-
-const paperTex = new THREE.CanvasTexture(paperCanvas);
-paperTex.needsUpdate = true;
-
-const paper = new THREE.Mesh(
-  new THREE.PlaneGeometry(0.72, 0.48),
-  new THREE.MeshBasicMaterial({ map: paperTex, transparent: true, opacity: 0.0, side: THREE.DoubleSide })
-);
-paper.position.set(0, 0.72, 0.0);
-paper.rotation.x = -Math.PI / 2 + 0.75;
-boxGroup.add(paper);
-
-// ---------------- Camera + Movement (smooth) ----------------
-let yaw = 0;
-let camDistance = 3.2;
-let camHeight = 1.55;
-
-const velocity = new THREE.Vector3();
-const input = { x: 0, y: 0 };
-const moveSpeed = 2.4;
-
-function updateCamera(dt) {
-  const behind = v3(Math.sin(yaw) * camDistance, camHeight, Math.cos(yaw) * camDistance);
-  const desiredPos = player.position.clone().add(behind);
-  const desiredTarget = player.position.clone().add(v3(0, 1.0, 0));
-
-  camPos.x = damp(camPos.x, desiredPos.x, 14, dt);
-  camPos.y = damp(camPos.y, desiredPos.y, 14, dt);
-  camPos.z = damp(camPos.z, desiredPos.z, 14, dt);
-
-  camTarget.x = damp(camTarget.x, desiredTarget.x, 18, dt);
-  camTarget.y = damp(camTarget.y, desiredTarget.y, 18, dt);
-  camTarget.z = damp(camTarget.z, desiredTarget.z, 18, dt);
-
-  camera.position.copy(camPos);
-  camera.lookAt(camTarget);
+  beginMorph("🤏 Sphere (cosmic sculpture)");
 }
 
-function updateMovement(dt, time) {
-  const forward = v3(Math.sin(yaw), 0, Math.cos(yaw)).normalize();
-  const right = v3(forward.z, 0, -forward.x).normalize();
+// Cube volume (with denser edges)
+function targetsCube(size = 2.0) {
+  for (let i = 0; i < COUNT; i++) {
+    // bias toward edges by mixing uniform + edge snap
+    let x = (Math.random() - 0.5) * size;
+    let y = (Math.random() - 0.5) * size;
+    let z = (Math.random() - 0.5) * size;
 
-  const desired = v3()
-    .addScaledVector(right, input.x)
-    .addScaledVector(forward, input.y);
-
-  if (desired.lengthSq() > 1) desired.normalize();
-  const targetVel = desired.multiplyScalar(moveSpeed);
-
-  velocity.x = damp(velocity.x, targetVel.x, 18, dt);
-  velocity.z = damp(velocity.z, targetVel.z, 18, dt);
-
-  player.position.x += velocity.x * dt;
-  player.position.z += velocity.z * dt;
-
-  player.position.x = clamp(player.position.x, -20, 24);
-  player.position.z = clamp(player.position.z, -18, 18);
-
-  const dir2 = Math.hypot(velocity.x, velocity.z);
-  if (dir2 > 0.08) {
-    const targetRot = Math.atan2(velocity.x, velocity.z);
-    player.rotation.y = damp(player.rotation.y, targetRot, 18, dt);
-  }
-
-  core.position.y = 0.92 + Math.sin(time * 2.2) * 0.03;
-}
-
-// ---------------- Interaction ----------------
-function hint(t) { hintEl.textContent = t; }
-
-function updateInteractHint() {
-  const d = player.position.distanceTo(boxGroup.position);
-  canInteract = d < 2.0 && !opened;
-  if (state === GameState.PLAYING && !opened) {
-    hint(canInteract ? "Tap INTERACT to open the box." : "Find the glowing box.");
-  }
-}
-
-function openBox() {
-  opened = true;
-  hint("Opening…");
-  camDistance = 2.35;
-  camHeight = 1.85;
-
-  // end after reveal
-  setTimeout(() => {
-    state = GameState.END;
-    endTextEl.textContent = "Lee Bal Kwar";
-    endEl.classList.remove("hide");
-    hint("—");
-  }, 2200);
-}
-
-btnInteract.addEventListener("click", () => {
-  if (state === GameState.PLAYING && canInteract && !opened) openBox();
-});
-
-// ---------------- Touch Controls (ROBUST) ----------------
-// Joystick: pointer capture + deadzone
-const joyState = { active: false, pid: null };
-function joyPoint(e) {
-  const r = joy.getBoundingClientRect();
-  const cx = r.left + r.width / 2;
-  const cy = r.top + r.height / 2;
-  return { x: e.clientX - cx, y: e.clientY - cy };
-}
-function setJoy(dx, dy) {
-  const max = 44;
-  const len = Math.hypot(dx, dy) || 1;
-  const nx = dx / len, ny = dy / len;
-  const mag = clamp(len, 0, max);
-  const x = nx * mag, y = ny * mag;
-  joyDot.style.transform = `translate(${x}px, ${y}px)`;
-
-  const dead = 6;
-  const eff = mag < dead ? 0 : (mag - dead) / (max - dead);
-  input.x = (x / max) * eff;
-  input.y = (-y / max) * eff;
-}
-
-joy.addEventListener("pointerdown", (e) => {
-  joy.setPointerCapture(e.pointerId);
-  joyState.active = true;
-  joyState.pid = e.pointerId;
-  const p = joyPoint(e);
-  setJoy(p.x, p.y);
-});
-joy.addEventListener("pointermove", (e) => {
-  if (!joyState.active || joyState.pid !== e.pointerId) return;
-  const p = joyPoint(e);
-  setJoy(p.x, p.y);
-});
-joy.addEventListener("pointerup", (e) => {
-  if (joyState.pid !== e.pointerId) return;
-  joyState.active = false;
-  joyState.pid = null;
-  setJoy(0, 0);
-});
-joy.addEventListener("pointercancel", () => {
-  joyState.active = false;
-  joyState.pid = null;
-  setJoy(0, 0);
-});
-
-// Camera swipe: DO NOT use movementX (iOS bug) — track manually
-const camState = { active: false, pid: null, lastX: 0, lastY: 0 };
-camZone.addEventListener("pointerdown", (e) => {
-  if (state !== GameState.PLAYING) return;
-  camZone.setPointerCapture(e.pointerId);
-  camState.active = true;
-  camState.pid = e.pointerId;
-  camState.lastX = e.clientX;
-  camState.lastY = e.clientY;
-});
-camZone.addEventListener("pointermove", (e) => {
-  if (!camState.active || camState.pid !== e.pointerId) return;
-  const dx = e.clientX - camState.lastX;
-  camState.lastX = e.clientX;
-
-  // yaw
-  yaw -= dx * 0.0042;
-});
-camZone.addEventListener("pointerup", (e) => {
-  if (camState.pid !== e.pointerId) return;
-  camState.active = false;
-  camState.pid = null;
-});
-camZone.addEventListener("pointercancel", () => {
-  camState.active = false;
-  camState.pid = null;
-});
-
-// Tap on canvas to open box (optional)
-canvas.addEventListener("pointerdown", (e) => {
-  if (state !== GameState.PLAYING) return;
-  if (canInteract && !opened) {
-    // quick tap anywhere if near the box
-    openBox();
-  }
-});
-
-// ---------------- UI ----------------
-btnPlay.addEventListener("click", () => {
-  menuEl.classList.add("hide");
-  endEl.classList.add("hide");
-  state = GameState.PLAYING;
-  opened = false;
-  paper.material.opacity = 0.0;
-  lidPivot.rotation.x = 0;
-
-  hint("Find the glowing box.");
-  orientationCheckSoft();
-});
-
-btnReplay.addEventListener("click", () => location.reload());
-btnRestart.addEventListener("click", () => location.reload());
-
-// ---------------- Loop (60fps-safe) ----------------
-let last = performance.now();
-let time = 0;
-const ringMat = ring.material;
-
-function frame(now) {
-  requestAnimationFrame(frame);
-  const dt = Math.min(0.033, (now - last) / 1000);
-  last = now;
-  time += dt;
-
-  // idle cinematic drift in menu
-  if (state === GameState.MENU) {
-    yaw += dt * 0.08;
-    hint("Ready. Press PLAY.");
-  }
-
-  // ambient
-  stars.rotation.y += dt * 0.02;
-  ring.rotation.z += dt * 0.6;
-  ringMat.opacity = 0.25 + (Math.sin(time * 2.2) + 1) * 0.08;
-
-  if (state === GameState.PLAYING) {
-    updateMovement(dt, time);
-    updateInteractHint();
-
-    if (opened) {
-      // lid open + paper reveal
-      lidPivot.rotation.x = damp(lidPivot.rotation.x, -1.35, 6, dt);
-      paper.material.opacity = damp(paper.material.opacity, 1.0, 6, dt);
-      paper.position.y = damp(paper.position.y, 0.88, 6, dt);
-      paper.rotation.x = damp(paper.rotation.x, -Math.PI / 2 + 0.42, 6, dt);
+    if (Math.random() < 0.35) {
+      const pick = Math.floor(Math.random() * 3);
+      const side = (Math.random() < 0.5 ? -1 : 1) * (size / 2);
+      if (pick === 0) x = side;
+      if (pick === 1) y = side;
+      if (pick === 2) z = side;
     }
-  }
 
-  updateCamera(dt);
-  renderer.render(scene, camera);
+    setTargetXYZ(i, x, y, z);
+  }
+  beginMorph("☝️ Cube (edge-biased)");
 }
 
-// Boot
-orientationCheckSoft();
-requestAnimationFrame(frame);
+// Heart (3D volume) using classic heart curve + thickness + jitter
+function targetsHeart(scale = 0.16) {
+  for (let i = 0; i < COUNT; i++) {
+    const t = Math.random() * Math.PI * 2;
+    const x2 = 16 * Math.pow(Math.sin(t), 3);
+    const y2 = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
+
+    // thickness volume (z) with slight bias
+    const z = (Math.random() - 0.5) * 1.2 + (Math.random() - 0.5) * 0.3;
+
+    // add micro jitter so it looks like nebula, not flat outline
+    const jitter = 0.06;
+    const x = x2 * scale + (Math.random() - 0.5) * jitter;
+    const y = y2 * scale + (Math.random() - 0.5) * jitter;
+
+    setTargetXYZ(i, x, y, z);
+  }
+  beginMorph("✋ Heart (nebula volume)");
+}
+
+// Reset to space (wide, cinematic)
+function targetsSpace() {
+  for (let i = 0; i < COUNT; i++) {
+    // more depth range for cinematic feel
+    setTargetXYZ(
+      i,
+      (Math.random() - 0.5) * 34,
+      (Math.random() - 0.5) * 34,
+      (Math.random() - 0.5) * 44
+    );
+  }
+  beginMorph("✊ Reset (space)");
+}
+
+/* =====================
+   ANIMATION LOOP
+===================== */
+let time = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+  time += 0.016;
+
+  // slow cosmic drift (always alive)
+  particles.rotation.y += 0.00045;
+  particles.rotation.x += 0.00010;
+  particles2.rotation.y -= 0.00025;
+  particles2.rotation.x += 0.00006;
+
+  // camera subtle breathe
+  camera3D.position.z = 7 + Math.sin(time * 0.35) * 0.08;
+
+  const p = geo.attributes.position.array;
+
+  // morphing
+  if (morph.active) {
+    morph.t = Math.min(1, morph.t + morph.speed);
+    const e = easeInOut(morph.t);
+
+    // overshoot curve near end (premium settle)
+    const settle = morph.t < 0.92
+      ? 1
+      : 1 + (Math.sin((morph.t - 0.92) * Math.PI * 10) * (1 - morph.t) * morph.overshoot);
+
+    for (let i = 0; i < COUNT; i++) {
+      const ix = i * 3;
+      const x = p[ix], y = p[ix + 1], z = p[ix + 2];
+
+      // swirl-in: rotate around z-axis while moving inward
+      const angle = (1 - e) * morph.swirl + phase[i] * 0.02;
+      const cosA = Math.cos(angle);
+      const sinA = Math.sin(angle);
+
+      const tx = tgt[ix];
+      const ty = tgt[ix + 1];
+      const tz = tgt[ix + 2];
+
+      // move toward target
+      const nx = x + (tx - x) * (0.07 + 0.06 * e) * settle;
+      const ny = y + (ty - y) * (0.07 + 0.06 * e) * settle;
+      const nz = z + (tz - z) * (0.07 + 0.06 * e) * settle;
+
+      // apply subtle swirl (cheap look killer)
+      p[ix]     = nx * cosA - ny * sinA;
+      p[ix + 1] = nx * sinA + ny * cosA;
+      p[ix + 2] = nz;
+    }
+
+    if (morph.t >= 1) morph.active = false;
+    geo.attributes.position.needsUpdate = true;
+    geo2.attributes.position.needsUpdate = true;
+  } else {
+    // idle shimmer: tiny noise so it never looks static/cheap
+    for (let i = 0; i < COUNT; i++) {
+      const ix = i * 3;
+      p[ix]     += Math.sin(time * 0.9 + phase[i]) * 0.00035 * depth[i];
+      p[ix + 1] += Math.cos(time * 0.8 + phase[i]) * 0.00035 * depth[i];
+    }
+    geo.attributes.position.needsUpdate = true;
+    geo2.attributes.position.needsUpdate = true;
+  }
+
+  renderer.render(scene, camera3D);
+}
+animate();
+
+/* =====================
+   HAND TRACKING (MediaPipe)
+===================== */
+function fingerStates(lm) {
+  const indexUp = lm[8].y < lm[6].y;
+  const middleUp = lm[12].y < lm[10].y;
+  const ringUp = lm[16].y < lm[14].y;
+  const pinkyUp = lm[20].y < lm[18].y;
+  return { indexUp, middleUp, ringUp, pinkyUp };
+}
+
+function dist2D(a, b) {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return Math.hypot(dx, dy);
+}
+
+function classify(lm) {
+  const { indexUp, middleUp, ringUp, pinkyUp } = fingerStates(lm);
+  const upCount = [
