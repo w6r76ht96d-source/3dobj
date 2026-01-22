@@ -2,249 +2,30 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>ECHO — Fragments of Light (Phase 1)</title>
-  <style>
-    :root{
-      --bg:#070A12;
-      --panel: rgba(10,12,22,.72);
-      --stroke: rgba(255,255,255,.14);
-      --text: rgba(255,255,255,.92);
-      --muted: rgba(255,255,255,.66);
-      --accent: rgba(122,167,255,.95);
-      --accent2: rgba(124,255,178,.95);
-      --danger: rgba(255,107,107,.95);
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%;margin:0;overflow:hidden;background:var(--bg);color:var(--text);
-      font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial;}
-    canvas{display:block;width:100vw;height:100vh;touch-action:none}
-
-    /* HUD */
-    .hud{
-      position:fixed; inset: 12px 12px auto 12px;
-      display:flex; gap:10px; align-items:center; justify-content:space-between;
-      z-index:20; pointer-events:none;
-    }
-    .pill{
-      pointer-events:none;
-      display:flex; gap:10px; align-items:center;
-      padding:10px 12px;
-      background:rgba(255,255,255,.06);
-      border:1px solid rgba(255,255,255,.12);
-      border-radius:14px;
-      backdrop-filter: blur(10px);
-      box-shadow: 0 12px 40px rgba(0,0,0,.35);
-      font-size:13px;
-      white-space:nowrap;
-    }
-    .pill b{font-weight:700}
-    .hintPill{max-width:min(70vw,520px); overflow:hidden; text-overflow:ellipsis;}
-    .btnRow{
-      pointer-events:auto;
-      display:flex; gap:8px; align-items:center;
-    }
-    button{
-      all:unset; cursor:pointer;
-      padding:10px 12px;
-      background:rgba(255,255,255,.08);
-      border:1px solid rgba(255,255,255,.14);
-      border-radius:12px;
-      backdrop-filter: blur(10px);
-      transition: transform .08s ease, background .2s ease;
-      font-size:13px;
-    }
-    button:hover{background:rgba(255,255,255,.12)}
-    button:active{transform: translateY(1px) scale(.99)}
-    .hide{display:none}
-
-    /* Overlay panels (Menu / End / Rotate) */
-    .overlay{
-      position:fixed; inset:0;
-      display:grid; place-items:center;
-      z-index:30;
-      background:
-        radial-gradient(1200px 800px at 20% 10%, rgba(26,36,88,.55) 0%, transparent 55%),
-        radial-gradient(900px 600px at 85% 40%, rgba(59,29,77,.55) 0%, transparent 50%),
-        rgba(0,0,0,.35);
-      backdrop-filter: blur(12px);
-    }
-    .panel{
-      width:min(560px, 92vw);
-      padding:18px 18px 16px;
-      background:var(--panel);
-      border:1px solid var(--stroke);
-      border-radius:18px;
-      box-shadow: 0 18px 80px rgba(0,0,0,.55);
-    }
-    .title{
-      display:flex; justify-content:space-between; align-items:flex-end; gap:12px;
-      margin-bottom:8px;
-    }
-    .title h1{margin:0; font-size:18px; letter-spacing:.5px}
-    .title small{color:var(--muted)}
-    .sub{margin:0 0 12px; color:var(--muted); font-size:13px; line-height:1.4}
-    .grid{display:grid; grid-template-columns:1fr 1fr; gap:10px}
-    .card{
-      padding:12px;
-      background:rgba(255,255,255,.05);
-      border:1px solid rgba(255,255,255,.10);
-      border-radius:14px;
-    }
-    .card h3{margin:0 0 6px; font-size:13px}
-    .card p{margin:0; color:var(--muted); font-size:12.5px; line-height:1.35}
-    .footer{
-      display:flex; justify-content:space-between; align-items:center;
-      gap:10px; margin-top:12px; flex-wrap:wrap;
-    }
-    .cta{
-      padding:12px 14px;
-      border-radius:14px;
-      border:1px solid rgba(122,167,255,.35);
-      background:rgba(122,167,255,.14);
-    }
-    .cta:hover{background:rgba(122,167,255,.20)}
-    .fine{color:var(--muted); font-size:12px}
-
-    /* Touch controls */
-    .joyWrap{
-      position:fixed; left:14px; bottom:14px;
-      width:150px; height:150px;
-      border-radius:26px;
-      background:rgba(255,255,255,.06);
-      border:1px solid rgba(255,255,255,.12);
-      backdrop-filter: blur(10px);
-      box-shadow: 0 16px 60px rgba(0,0,0,.35);
-      display:none;
-      z-index:25;
-      touch-action:none;
-    }
-    .joyBase{position:absolute; inset:0; display:grid; place-items:center}
-    .joyDot{
-      width:56px; height:56px;
-      border-radius:18px;
-      background:rgba(122,167,255,.18);
-      border:1px solid rgba(122,167,255,.45);
-      box-shadow: 0 12px 40px rgba(122,167,255,.12);
-      transform: translate(0,0);
-      transition: transform .06s linear;
-    }
-    /* Right-side camera swipe zone */
-    .camZone{
-      position:fixed; right:0; top:0;
-      width:55vw; height:100vh;
-      z-index:24;
-      touch-action:none;
-    }
-    .tapInteract{
-      position:fixed; right:14px; bottom:14px;
-      z-index:26;
-      display:none;
-    }
-    .tapInteract button{
-      padding:14px 14px;
-      border-radius:16px;
-      border:1px solid rgba(124,255,178,.35);
-      background:rgba(124,255,178,.14);
-    }
-    .tapInteract button:hover{background:rgba(124,255,178,.20)}
-
-    @media (pointer:coarse){
-      .joyWrap{display:block;}
-      .camZone{display:block;}
-      .tapInteract{display:block;}
-    }
-
-    /* Rotate overlay (portrait) */
-    .rotateIcon{
-      width:54px;height:54px;border-radius:18px;
-      border:1px solid rgba(255,255,255,.16);
-      background:rgba(255,255,255,.06);
-      display:grid; place-items:center;
-      margin-bottom:10px;
-    }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Cosmic Hand Morph</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="hud">
-    <div class="pill hintPill" id="hint">Loading…</div>
-    <div class="btnRow">
-      <button id="btnRestart">Restart</button>
-    </div>
+
+  <!-- faint front camera -->
+  <video id="video" autoplay playsinline muted></video>
+
+  <!-- three.js canvas -->
+  <canvas id="three"></canvas>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="title">COSMIC MORPH</div>
+    <div class="status" id="status">Starting camera…</div>
+    <div class="hint">✋ Open → Heart | 🤏 Pinch → Sphere | ☝️ Point → Cube | ✊ Fist → Reset</div>
   </div>
 
-  <!-- Play Menu -->
-  <div class="overlay" id="menu">
-    <div class="panel">
-      <div class="title">
-        <h1>ECHO</h1>
-        <small>Fragments of Light</small>
-      </div>
-      <p class="sub">
-        A cinematic third-person journey. Explore the quiet world, then open the final box.
-      </p>
-      <div class="grid">
-        <div class="card">
-          <h3>Controls</h3>
-          <p>
-            Move: left joystick<br>
-            Camera: swipe right side<br>
-            Interact: tap button (or tap object)
-          </p>
-        </div>
-        <div class="card">
-          <h3>Performance</h3>
-          <p>
-            Optimized for mobile.<br>
-            Target: stable 60 FPS.<br>
-            Landscape only.
-          </p>
-        </div>
-      </div>
-      <div class="footer">
-        <div class="fine">Tip: Walk to the glowing box and interact.</div>
-        <button class="cta" id="btnPlay">PLAY</button>
-      </div>
-    </div>
-  </div>
+  <!-- libs -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
 
-  <!-- End Screen -->
-  <div class="overlay hide" id="end">
-    <div class="panel">
-      <div class="title">
-        <h1>End</h1>
-        <small>Thank you for listening.</small>
-      </div>
-      <p class="sub" id="endText">
-        —
-      </p>
-      <div class="footer">
-        <div class="fine">Replay anytime.</div>
-        <button class="cta" id="btnReplay">REPLAY</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Rotate Screen -->
-  <div class="overlay hide" id="rotate">
-    <div class="panel" style="text-align:center">
-      <div class="rotateIcon">📱↻</div>
-      <div class="title" style="justify-content:center">
-        <h1 style="text-align:center">Please rotate your device</h1>
-      </div>
-      <p class="sub">Landscape mode is required for the best cinematic experience.</p>
-    </div>
-  </div>
-
-  <!-- Touch UI -->
-  <div class="joyWrap" id="joy">
-    <div class="joyBase"><div class="joyDot" id="joyDot"></div></div>
-  </div>
-  <div class="camZone" id="camZone"></div>
-  <div class="tapInteract" id="tapUI"><button id="btnInteract">INTERACT</button></div>
-
-  <canvas id="c"></canvas>
-
-  <script type="module" src="./main.js"></script>
+  <!-- app -->
+  <script src="script.js"></script>
 </body>
 </html>
